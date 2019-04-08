@@ -4,9 +4,11 @@ import torch
 
 class ASIC(torch.nn.Module):
 
-    def __init__(self, n):
+    def __init__(self, n, recurrent_count=32):
         # dimensions: horizontal, vertical x direction -1, direction +1 x incoming bits from other rails x n x n
         super(ASIC, self).__init__()
+        self.recurrent_count = recurrent_count
+        self.counter = 0
         dimension = 2
         ns = (n,) * dimension
         self.toggle_gates = torch.nn.Parameter(torch.rand(*(2 * dimension, 2 ** (2 * dimension - 1),) + ns))
@@ -27,10 +29,6 @@ class ASIC(torch.nn.Module):
         self.output_mask = torch.from_numpy(self.output_mask.reshape(-1))
         self.ns = ns
 
-        diagonal = torch.zeros(self.rail_state.shape[0])
-        diagonal[self.output_mask.nonzero()] = 1
-        self.assignment_matrix = torch.diag(diagonal, 0)[:, :self.output_mask.sum()]
-
     def forward(self, x, mask):
         '''
         takes input and output
@@ -45,7 +43,14 @@ class ASIC(torch.nn.Module):
             toggled = toggle_weights[i] * inputs + (1 - toggle_weights[i]) * (1 - inputs)
             new_outputs[i] = (toggled * weight).sum(0)
         new_outputs = torch.clamp(new_outputs.reshape(-1), 0, 1)
-        self.rail_state[self.output_mask] = new_outputs
+
+        self.counter += 1
+        self.counter %= self.recurrent_count
+        if self.counter:
+            self.rail_state[self.output_mask] = new_outputs
+        else:
+            self.rail_state[self.output_mask] = new_outputs.detach()
+
         return new_outputs[mask]
 
 model = ASIC(10)
@@ -55,7 +60,7 @@ mask[-3:] = 1
 def f(x):
     ret = x ** 2
     return ret.float()
-epochs = 1000
+epochs = 10000
 optimizer = torch.optim.Adam(model.parameters())
 for _ in range(epochs):
     x = torch.from_numpy(numpy.asarray([0, 1, 0]))
