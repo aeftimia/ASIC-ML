@@ -53,12 +53,12 @@ class ASIC(torch.nn.Module):
 
         return new_outputs[mask]
 
-model = ASIC(10)
+model = ASIC(2)
 mask = torch.zeros(model.output_mask.sum(), dtype=torch.uint8)
 mask[-3:] = 1
 
 def f(x):
-    ret = x ** 2
+    ret = x
     return ret.float()
 epochs = 10000
 optimizer = torch.optim.Adam(model.parameters())
