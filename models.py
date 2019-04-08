@@ -46,12 +46,11 @@ class ASIC(torch.nn.Module):
             new_outputs[i] = (toggled * weight).sum(0)
         new_outputs = torch.clamp(new_outputs.reshape(-1), 0, 1)
         self.rail_state[self.output_mask] = new_outputs
-        return self.rail_state[mask]*self.toggle_gates.reshape(-1)[0]
+        return new_outputs[mask]
 
 model = ASIC(10)
-num_rails = len(model.rail_state)
-mask = torch.from_numpy(numpy.zeros(model.rail_state.shape, dtype='uint8'))
-mask[num_rails - 3:num_rails] = 1
+mask = torch.zeros(model.output_mask.sum(), dtype=torch.uint8)
+mask[-3:] = 1
 
 def f(x):
     ret = x ** 2
@@ -66,5 +65,5 @@ for _ in range(epochs):
     optimizer.zero_grad()
     loss = ((v - f(x)) ** 2).mean()
     print(loss.item())
-    loss.backward()
+    loss.backward(retain_graph=True)
     optimizer.step()
