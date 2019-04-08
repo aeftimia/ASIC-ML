@@ -40,7 +40,8 @@ class ASIC(torch.nn.Module):
         for i, inputs in enumerate(new_inputs):
             inputs_i = torch.cat((new_inputs[:i], new_inputs[i + 1:]), 0)
             weight = (1 - torch.abs(self.bitmask - inputs_i)).prod(1)
-            toggled = toggle_weights[i] * inputs + (1 - toggle_weights[i]) * (1 - inputs)
+            # toggled = toggle_weights[i] * inputs + (1 - toggle_weights[i]) * (1 - inputs)
+            toggled = toggle_weights[i]
             new_outputs[i] = (toggled * weight).sum(0)
         new_outputs = torch.clamp(new_outputs.reshape(-1), 0, 1)
 
@@ -68,7 +69,7 @@ for _ in range(epochs):
     print(v)
     print(f(x))
     optimizer.zero_grad()
-    loss = ((v - f(x)) ** 2).mean()
+    loss = (abs(v - f(x))).max()
     print(loss.item())
     loss.backward(retain_graph=True)
     optimizer.step()
