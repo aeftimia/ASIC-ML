@@ -1,3 +1,5 @@
+            print('shae')
+            print(new_outputs[i].shape)
 import itertools
 import numpy
 import torch
@@ -9,39 +11,19 @@ def score_max(x, dim, score):
 
 class ASIC(torch.nn.Module):
 
-    def __init__(self, n, recurrent_count=32):
+    def __init__(self, shape, kernel):
         # dimensions: horizontal, vertical x direction -1, direction +1 x incoming bits from other rails x n x n
         super(ASIC, self).__init__()
-        self.recurrent_count = recurrent_count
-        self.counter = 0
-        dimension = 2
-        ns = (n,) * dimension
-        self.toggle_gates = torch.nn.Parameter(torch.rand(*(2 * dimension, 2 ** (2 * dimension - 1),) + ns))
-        self.rail_shape = (2, dimension) + (n + 1,) * dimension
-        self.mask_shape = (2, dimension) + (n,) * dimension
-        self.reset_rails()
-        self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=2 * dimension - 1))))
-        self.bitmask = self.bitmask.repeat(ns + (1, 1)).permute((dimension, dimension + 1) + tuple(range(dimension))).float()
+        self.dimension = len(shape)
+        self.kernel = kernel
+        self.toggle_gates = torch.nn.Parameter(torch.rand(*numpy.prod(kernel) + shape))
 
-        self.input_mask = numpy.zeros(self.rail_shape, dtype='uint8')
-        self.input_mask[(slice(0, 1, 1), slice(None, None, 1)) + tuple(slice(1, None, 1) for _ in range(dimension))] = 1
-        self.input_mask[(slice(1, 2, 1), slice(None, None, 1)) + tuple(slice(0, -1, 1) for _ in range(dimension))] = 1
-        self.input_mask = torch.from_numpy(self.input_mask.reshape(-1))
-
-        self.output_mask = numpy.zeros(self.rail_shape, dtype='uint8')
-        self.output_mask[(slice(0, 1, 1), slice(None, None, 1)) + tuple(slice(0, -1, 1) for _ in range(dimension))] = 1
-        self.output_mask[(slice(1, 2, 1), slice(None, None, 1)) + tuple(slice(1, None, 1) for _ in range(dimension))] = 1
-        self.output_mask = torch.from_numpy(self.output_mask.reshape(-1))
-        self.ns = ns
-
-    def reset_rails(self):
-        self.rail_state = torch.zeros(numpy.prod(self.rail_shape))
-
-    def forward(self, x, mask):
+    def forward(self, x):
         '''
         takes input and output
         '''
-        if len(x):
+        outputs = x
+        for  in self.
             self.rail_state.reshape(self.rail_shape)[1, 1, :len(x), 0] = x
         new_outputs = torch.empty((numpy.prod(self.mask_shape[:2]),) + self.ns)
         new_inputs = self.rail_state[self.input_mask].reshape((-1,) + self.ns)
@@ -55,6 +37,30 @@ class ASIC(torch.nn.Module):
             new_outputs[i] = score_max(toggled, 0, weight.argmax(0))
         new_outputs = torch.clamp(new_outputs.reshape(-1), 0, 1)
 
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
+            print('shae')
+            print(new_outputs[i].shape)
         self.counter += 1
         self.counter %= self.recurrent_count
         self.rail_state[self.output_mask] = new_outputs
