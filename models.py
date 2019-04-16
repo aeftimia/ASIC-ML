@@ -67,26 +67,29 @@ class ASIC(torch.nn.Module):
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((4,), 16, (3,))
+model = ASIC((3,), 2, (3,))
 
 def f(x):
-    ret = abs(x[1] * x[0] - x)
+    ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
     return ret.float()
 
-epochs = 10000
+epochs = 100000
 optimizer = torch.optim.Adam(model.parameters())
-batch_size = 1024
+batch_size = 512
 tally = 1
-for _ in range(epochs):
+for epoch in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
     pred, regularizer = model(x.float())
     true = f(x)
-    loss = bce(pred, true) #+ regularizer
+    loss = bce(pred, true) # + regularizer
     loss.backward()
-    print(x[0])
-    print(pred[0])
-    print(true[0])
-    print(loss.item())
+    if not epoch % 100:
+        print(x[0])
+        print(pred[0])
+        print(pred[0].round())
+        print(true[0])
+        print(1 - abs(true - pred.round()).mean().item())
+        print(loss.item())
     optimizer.step()
