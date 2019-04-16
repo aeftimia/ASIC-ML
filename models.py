@@ -54,18 +54,22 @@ class ASIC(torch.nn.Module):
         toggle_weights = torch.nn.Sigmoid()(self.toggle_gates)
         bitmask = repeat(self.bitmask, (x.shape[0],))
         outputs = x
+        regularizer = 0
+        total = 0
         for layer in range(self.layers):
             convolved = self.convolve(outputs)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
+            regularizer -= torch.log(weight).sum()
+            total += numpy.prod(weight.shape)
             outputs = (weight * toggle_weights[layer]).sum(1)
             outputs = torch.clamp(outputs, 0, 1)
-        return outputs
+        return outputs, regularizer / total
 
 def loss_function(pred, true):
     ret = true * torch.log(pred) + (1 - true) * torch.log(1 - pred)
     return -ret.mean()
 
-model = ASIC((4,), 9, (3,))
+model = ASIC((8,), 3, (3,))
 
 def f(x):
     ret = abs(x[1] * x[0] - x)
@@ -78,10 +82,10 @@ tally = 1
 for _ in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
-    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size, 4)))
-    pred = model(x.float())
+    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
+    pred, regularizer = model(x.float())
     true = f(x)
-    loss = loss_function(pred, true)
+    loss = loss_function(pred, true) + regularizer
     loss.backward()
     print(x[0])
     print(pred[0])
