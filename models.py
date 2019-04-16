@@ -85,7 +85,7 @@ for _ in range(epochs):
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
     pred, regularizer = model(x.float())
     true = f(x)
-    loss = loss_function(pred, true) #+ regularizer
+    loss = loss_function(pred, true) + regularizer
     loss.backward()
     print(x[0])
     print(pred[0])
