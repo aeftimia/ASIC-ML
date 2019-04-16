@@ -38,9 +38,9 @@ class ASIC(torch.nn.Module):
         for dimension, k in enumerate(self.kernel):
             if dimension:
                 x = x.transpose(1, dimension + 1)
-            inputs = [x]
-            for i in range(1, k):
-                inputs.append(torch.cat((x[i:], x[:i]), 0))
+            inputs = []
+            for i in range(k):
+                inputs.append(torch.cat((x[:, i:], x[: ,:i]), 1))
             x = torch.stack(inputs)
             x = x.permute(tuple(range(1, len(x.shape))) + (0,))
             if dimension:
@@ -51,23 +51,20 @@ class ASIC(torch.nn.Module):
         '''
         forward pass through asic
         '''
-        toggle_weights = torch.nn.Sigmoid()(self.toggle_gates)
+        toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
         outputs = x
-        regularizer = 0
         total = 0
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(outputs)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
-            if i:
-                regularizer -= torch.log(weight).mean() + torch.log(1 - weight).mean()
             outputs = (weight * toggle_weights[layer]).sum(1)
             outputs = torch.clamp(outputs, 0, 1)
-        return outputs, regularizer / (self.layers - 1)
+        return outputs
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((3,), 2, (3,))
+model = ASIC((3,), 1, (3,))
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
@@ -81,9 +78,9 @@ for epoch in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
-    pred, regularizer = model(x.float())
+    pred = model(x.float())
     true = f(x)
-    loss = bce(pred, true) # + regularizer
+    loss = bce(pred, true)
     loss.backward()
     if not epoch % 100:
         print(x[0])
