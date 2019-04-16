@@ -1,5 +1,3 @@
-            print('shae')
-            print(new_outputs[i].shape)
 import itertools
 import numpy
 import torch
@@ -9,92 +7,80 @@ def score_max(x, dim, score):
     _tmp[dim] = x.size(dim)
     return torch.gather(x, dim, score.unsqueeze(dim).repeat(tuple(_tmp))).select(dim, 0)
 
+def repeat(x, shape):
+    return x.repeat(shape + (1,) * len(x.shape))
+
+def last_to_first(x):
+    ndim = len(x.shape)
+    return x.permute((ndim - 1,) + tuple(range(ndim - 1)))
+
+def first_to_last(x):
+    ndim = len(x.shape)
+    return x.permute(tuple(range(1, ndim)) + (0,))
+
 class ASIC(torch.nn.Module):
 
-    def __init__(self, shape, kernel):
+    def __init__(self, shape, layers, kernel):
         # dimensions: horizontal, vertical x direction -1, direction +1 x incoming bits from other rails x n x n
         super(ASIC, self).__init__()
-        self.dimension = len(shape)
+        dimension = len(shape)
         self.kernel = kernel
-        self.toggle_gates = torch.nn.Parameter(torch.rand(*numpy.prod(kernel) + shape))
+        self.shape = shape
+        self.layers = layers
+        ninputs = numpy.prod(kernel)
+        n_possible_inputs = 2 ** ninputs
+        self.toggle_gates = torch.nn.Parameter(torch.rand(*(layers, n_possible_inputs) + shape))
+        self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).transpose(0, 1)
+        self.bitmask = repeat(self.bitmask, shape).float()
+
+    def convolve(self, x):
+        shape = x.shape
+        for dimension, k in enumerate(self.kernel):
+            if dimension:
+                x = x.transpose(1, dimension + 1)
+            inputs = [x]
+            for i in range(1, k):
+                inputs.append(torch.cat((x[i:], x[:i]), 0))
+            x = torch.stack(inputs)
+            x = x.permute(tuple(range(1, len(x.shape))) + (0,))
+            if dimension:
+                x = x.transpose(1, dimension + 1)
+        return x.reshape(shape + (-1,))
 
     def forward(self, x):
         '''
-        takes input and output
+        forward pass through asic
         '''
-        outputs = x
-        for  in self.
-            self.rail_state.reshape(self.rail_shape)[1, 1, :len(x), 0] = x
-        new_outputs = torch.empty((numpy.prod(self.mask_shape[:2]),) + self.ns)
-        new_inputs = self.rail_state[self.input_mask].reshape((-1,) + self.ns)
         toggle_weights = torch.nn.Sigmoid()(self.toggle_gates)
-        for i, inputs in enumerate(new_inputs):
-            inputs_i = torch.cat((new_inputs[:i], new_inputs[i + 1:]), 0)
-            weight = (1 - torch.abs(self.bitmask - inputs_i)).prod(1)
-            # toggled = toggle_weights[i] * inputs + (1 - toggle_weights[i]) * (1 - inputs)
-            toggled = toggle_weights[i]
-            # new_outputs[i] = (toggled * weight).sum(0)
-            new_outputs[i] = score_max(toggled, 0, weight.argmax(0))
-        new_outputs = torch.clamp(new_outputs.reshape(-1), 0, 1)
+        bitmask = repeat(self.bitmask, (x.shape[0],))
+        outputs = x
+        for layer in range(self.layers):
+            convolved = self.convolve(outputs)
+            weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
+            outputs = (weight * toggle_weights[layer]).sum(1)
+            outputs = torch.clamp(outputs, 0, 1)
+        return outputs
 
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-            print('shae')
-            print(new_outputs[i].shape)
-        self.counter += 1
-        self.counter %= self.recurrent_count
-        self.rail_state[self.output_mask] = new_outputs
-
-        return new_outputs[mask]
-
-model = ASIC(3)
-mask = torch.zeros(model.output_mask.sum(), dtype=torch.uint8)
-mask[-3:] = 1
+model = ASIC((4,), 9, (3,))
 
 def f(x):
     ret = abs(x[1] * x[0] - x)
     return ret.float()
+
 epochs = 10000
 optimizer = torch.optim.Adam(model.parameters())
 batch_size = 32
 tally = 1
 for _ in range(epochs):
-    loss = 0
     optimizer.zero_grad()
-    for _ in range(batch_size):
-        # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
-        x = torch.from_numpy(numpy.random.randint(0, 2, size=3))
-        model.reset_rails()
-        v = model(x, mask)
-        for _ in range(model.ns[-1]):
-            v = model([], mask)
-        u = f(x)
-        tally += u
-        loss = ((abs(v - u)) * 1. / tally).sum() / (1. / tally).sum()
-        # loss = abs(v - u).mean()
-        loss.backward(retain_graph=True)
-    print(x)
-    print(v)
-    print(f(x))
+    # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
+    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size, 4)))
+    v = model(x.float())
+    u = f(x)
+    loss = abs(v - u).mean()
+    loss.backward()
+    print(x[0])
+    print(v[0])
+    print(f(x)[0])
     print(loss.item() / batch_size)
     optimizer.step()
