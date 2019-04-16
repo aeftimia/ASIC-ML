@@ -55,16 +55,19 @@ class ASIC(torch.nn.Module):
         bitmask = repeat(self.bitmask, (x.shape[0],))
         outputs = x
         total = 0
+        regularizer = 0
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(outputs)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
             outputs = (weight * toggle_weights[layer]).sum(1)
             outputs = torch.clamp(outputs, 0, 1)
-        return outputs
+            if i:
+                regularizer += weight * torch.log(weight) + (1 - weight) * torch.log(1 - weight)
+        return outputs, regularizer.mean()
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((3,), 1, (3,))
+model = ASIC((4,), 3, (3,))
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
@@ -78,9 +81,9 @@ for epoch in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
-    pred = model(x.float())
+    pred, regularizer = model(x.float())
     true = f(x)
-    loss = bce(pred, true)
+    loss = bce(pred, true) #+ regularizer
     loss.backward()
     if not epoch % 100:
         print(x[0])
