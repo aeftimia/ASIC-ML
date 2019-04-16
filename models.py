@@ -60,14 +60,12 @@ class ASIC(torch.nn.Module):
             convolved = self.convolve(outputs)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
             if i:
-                regularizer -= torch.log(weight).mean()
+                regularizer -= torch.log(weight).mean() + torch.log(1 - weight).mean()
             outputs = (weight * toggle_weights[layer]).sum(1)
             outputs = torch.clamp(outputs, 0, 1)
         return outputs, regularizer / (self.layers - 1)
 
-def loss_function(pred, true):
-    ret = true * torch.log(pred) + (1 - true) * torch.log(1 - pred)
-    return -ret.mean()
+bce = torch.nn.BCELoss()
 
 model = ASIC((4,), 16, (3,))
 
@@ -85,7 +83,7 @@ for _ in range(epochs):
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
     pred, regularizer = model(x.float())
     true = f(x)
-    loss = loss_function(pred, true) + regularizer
+    loss = bce(pred, true) #+ regularizer
     loss.backward()
     print(x[0])
     print(pred[0])
