@@ -61,6 +61,10 @@ class ASIC(torch.nn.Module):
             outputs = torch.clamp(outputs, 0, 1)
         return outputs
 
+def loss_function(pred, true):
+    ret = true * torch.log(pred) + (1 - true) * torch.log(1 - pred)
+    return -ret.mean()
+
 model = ASIC((4,), 9, (3,))
 
 def f(x):
@@ -69,18 +73,18 @@ def f(x):
 
 epochs = 10000
 optimizer = torch.optim.Adam(model.parameters())
-batch_size = 32
+batch_size = 1024
 tally = 1
 for _ in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size, 4)))
-    v = model(x.float())
-    u = f(x)
-    loss = abs(v - u).mean()
+    pred = model(x.float())
+    true = f(x)
+    loss = loss_function(pred, true)
     loss.backward()
     print(x[0])
-    print(v[0])
-    print(f(x)[0])
+    print(pred[0])
+    print(true[0])
     print(loss.item() / batch_size)
     optimizer.step()
