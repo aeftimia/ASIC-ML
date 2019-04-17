@@ -115,7 +115,12 @@ if torch.cuda.is_available():
     device = 'cuda'
 else:
     device = 'cpu'
-model = ASIC((16,), 8, (2,), device)
+
+n_inputs = 8
+shape = n_inputs * 2
+span = 2
+layers = (n_inputs - 2) // (span * 2) + 1
+model = ASIC((shape,), layers, (span,), device)
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
