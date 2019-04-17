@@ -53,21 +53,27 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
-        outputs = x
-        total = 0
-        regularizer = 0
+        slices = self.embed(x)
         for i, layer in enumerate(range(self.layers)):
-            convolved = self.convolve(outputs)
+            convolved = self.convolve(self.state)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
-            outputs = (weight * toggle_weights[layer]).sum(1)
-            outputs = torch.clamp(outputs, 0, 1)
-            if i:
-                regularizer += weight * torch.log(weight) + (1 - weight) * torch.log(1 - weight)
-        return outputs, regularizer.mean()
+            self.state = (weight * toggle_weights[layer]).sum(1)
+            self.state = torch.clamp(self.state, 0, 1)
+        return self.state[slices]
+
+    def embed(self, x):
+        self.state = torch.zeros((x.shape[0],) + self.shape)
+        slices = [slice(None, None, None)]
+        for my_shape, your_shape in zip(self.shape, x.shape[1:]):
+            assert not my_shape % your_shape
+            slices.append(slice(None, None, my_shape // your_shape))
+        slices = tuple(slices)
+        self.state[slices] = x
+        return slices
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((4,), 3, (3,))
+model = ASIC((8,), 8, (3,))
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
@@ -75,13 +81,13 @@ def f(x):
 
 epochs = 100000
 optimizer = torch.optim.Adam(model.parameters())
-batch_size = 512
-tally = 1
+batch_size = 128
+memory = 2
 for epoch in range(epochs):
     optimizer.zero_grad()
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
-    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + model.shape))
-    pred, regularizer = model(x.float())
+    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape)))
+    pred = model(x.float())
     true = f(x)
     loss = bce(pred, true) #+ regularizer
     loss.backward()
