@@ -52,7 +52,7 @@ class ASIC(torch.nn.Module):
                 x = x.transpose(1, dimension + 1)
             inputs = []
             for i in range(k):
-                inputs.append(torch.cat((x[:, i:], x[: ,:i]), 1))
+                inputs.append(torch.cat((x[:, -i:], x[:, :-i]), 1))
             x = torch.stack(inputs)
             x = x.permute(tuple(range(1, len(x.shape))) + (0,))
             if dimension:
