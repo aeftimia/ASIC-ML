@@ -124,7 +124,7 @@ for epoch in range(epochs):
         inputs = x[0]
         circuit_prediction = pred_circuit[0]
         true_output = true[0]
-        accuracy = 1 - abs(true_output - circuit_prediction).mean()
+        accuracy = 1 - abs(true - pred_circuit).mean()
         this_loss = loss.item()
         if use_cuda:
             inputs = inputs.detach().cpu().numpy()
