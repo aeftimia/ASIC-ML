@@ -78,6 +78,8 @@ class ASIC(torch.nn.Module):
 
     def embed(self, x):
         self.state = torch.zeros((x.shape[0],) + self.shape)
+        if x.is_cuda:
+            self.state = self.state.cuda()
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
             assert not my_shape % your_shape
