@@ -76,8 +76,9 @@ class ASIC(torch.nn.Module):
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(circuit)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
-            self.state = (weight * toggle_weights[layer]).sum(1)
-            self.state = torch.clamp(circuit, 0, 1)
+            circuit = (weight * toggle_weights[layer]).sum(1)
+            circuit = torch.clamp(circuit, 0, 1)
+            circuit = circuit.round()
         return circuit[slices]
 
     def embed(self, x):
