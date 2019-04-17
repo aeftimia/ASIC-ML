@@ -53,6 +53,8 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
+        if x.is_cuda:
+            bitmask = bitmask.cuda()
         slices = self.embed(x)
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(self.state)
