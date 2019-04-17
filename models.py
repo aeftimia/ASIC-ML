@@ -61,6 +61,21 @@ class ASIC(torch.nn.Module):
             self.state = torch.clamp(self.state, 0, 1)
         return self.state[slices]
 
+    def apply(self, x):
+        '''
+        apply asic circuit
+        '''
+        toggle_weights = self.toggle_gates.sigmoid()
+        bitmask = repeat(self.bitmask, (x.shape[0],))
+        slices = self.embed(x)
+        circuit = self.state.round()
+        for i, layer in enumerate(range(self.layers)):
+            convolved = self.convolve(circuit)
+            weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
+            self.state = (weight * toggle_weights[layer]).sum(1)
+            self.state = torch.clamp(circuit, 0, 1)
+        return circuit[slices]
+
     def embed(self, x):
         self.state = torch.zeros((x.shape[0],) + self.shape)
         slices = [slice(None, None, None)]
@@ -73,7 +88,7 @@ class ASIC(torch.nn.Module):
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((8,), 8, (3,))
+model = ASIC((16,), 8, (5,))
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
@@ -88,14 +103,14 @@ for epoch in range(epochs):
     # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape)))
     pred = model(x.float())
+    pred_circuit = model.apply(x.float())
     true = f(x)
     loss = bce(pred, true) #+ regularizer
     loss.backward()
     if not epoch % 100:
         print(x[0])
-        print(pred[0])
-        print(pred[0].round())
+        print(pred_circuit[0])
         print(true[0])
-        print(1 - abs(true - pred.round()).mean().item())
+        print(1 - abs(true - pred_circuit).mean().item())
         print(loss.item())
     optimizer.step()
