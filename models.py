@@ -56,12 +56,14 @@ class ASIC(torch.nn.Module):
         if x.is_cuda:
             bitmask = bitmask.cuda()
         slices = self.embed(x)
+        regularizer = 0
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(self.state)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
             self.state = (weight * toggle_weights[layer]).sum(1)
             self.state = torch.clamp(self.state, 0, 1)
-        return self.state[slices]
+            regularizer -= (self.state * torch.log(self.state) + (1 - self.state) * torch.log(1 - self.state)).mean()
+        return self.state[slices], regularizer
 
     def apply(self, x):
         '''
@@ -113,10 +115,10 @@ for epoch in range(epochs):
     x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape))).float()
     if use_cuda:
         x = x.cuda()
-    pred = model(x)
+    pred, regularizer = model(x)
     pred_circuit = model.apply(x)
     true = f(x)
-    loss = bce(pred, true) #+ regularizer
+    loss = bce(pred, true) + regularizer
     loss.backward()
     if not epoch % 100:
         inputs = x[0]
