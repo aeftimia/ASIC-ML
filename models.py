@@ -128,7 +128,6 @@ for epoch in range(epochs):
             circuit_prediction = circuit_prediction.detach().cpu().numpy()
             true_output = true_output.detach().cpu().numpy()
             accuracy = accuracy.detach().cpu().numpy()
-            this_loss = this_loss.detach().cpu().numpy()
         print(inputs)
         print(circuit_prediction)
         print(true_output)
