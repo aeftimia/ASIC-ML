@@ -131,7 +131,7 @@ def f(x):
 
 epochs = 10 ** 6
 optimizer = torch.optim.Adam(model.parameters())
-batch_size = 256
+batch_size = 64
 memory = 2 # for 1 / 2 wires used for memory
 model = model.to(device)
 for epoch in range(epochs):
