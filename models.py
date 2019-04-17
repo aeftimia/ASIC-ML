@@ -52,12 +52,19 @@ class ASIC(torch.nn.Module):
                 x = x.transpose(1, dimension + 1)
             inputs = []
             for i in range(k):
-                inputs.append(torch.cat((x[:, -i:], x[:, :-i]), 1))
+                inputs.append(torch.cat((x[:, i:], x[:, :i]), 1))
             x = torch.stack(inputs)
-            x = x.permute(tuple(range(1, len(x.shape))) + (0,))
+            x = first_to_last(x)
             if dimension:
                 x = x.transpose(1, dimension + 1)
-        return x.reshape(shape + (-1,))
+        x = x.reshape(shape + (-1,))
+        # recenter
+        center = -numpy.prod(tuple((k - 1) // 2 for k in self.kernel))
+        ndim = len(x.shape)
+        x = x.permute((ndim - 2, ndim - 1) + tuple(range(ndim - 2)))
+        x = torch.cat((x[center:], x[:center]), 0)
+        x = x.permute(tuple(range(2, ndim)) + (0, 1))
+        return x
 
     def forward(self, x):
         '''
