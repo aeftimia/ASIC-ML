@@ -57,12 +57,14 @@ class ASIC(torch.nn.Module):
             bitmask = bitmask.cuda()
         slices = self.embed(x)
         regularizer = 0
-        for i, layer in enumerate(range(self.layers)):
+        for layer in range(self.layers):
             convolved = self.convolve(self.state)
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
             self.state = (weight * toggle_weights[layer]).sum(1)
             self.state = torch.clamp(self.state, 0, 1)
             regularizer -= (self.state * torch.log(self.state) + (1 - self.state) * torch.log(1 - self.state)).mean()
+        if self.layers:
+            regularizer /= self.layers
         return self.state[slices], regularizer
 
     def apply(self, x):
