@@ -40,6 +40,12 @@ class ASIC(torch.nn.Module):
         self.bitmask = repeat(self.bitmask, shape)
 
     def convolve(self, x):
+        '''
+        slide and wrap self.kernel across x
+        self.kernel.shape = size1, size2, ..., sizeN
+        x.shape = batch_size, dimension1, dimension2, ..., dimensionN
+        convolve(x) = batch_size,dimension1, dimension2, ..., dimensionN, size1 x size2 x ... x sizeN
+        '''
         shape = x.shape
         for dimension, k in enumerate(self.kernel):
             if dimension:
@@ -56,6 +62,10 @@ class ASIC(torch.nn.Module):
     def forward(self, x):
         '''
         forward pass through asic
+        Bits on each wire are floating points between 0 and 1
+        The output of each gate is a weighted average of the outputs of the gate over all possible inputs 
+        the weights are determined by how close the actual floating point input is to each possible combination of boolean inputs
+        The weights are derived from 1 - |bitmask - real_inputs|, where the bitmask contains an array of all possible combinations of inputs
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
@@ -69,7 +79,8 @@ class ASIC(torch.nn.Module):
 
     def apply(self, x):
         '''
-        apply asic circuit
+        Similar to forward, except round the outputs at each layer
+        This represents the real asic derived from the differentiable floating point version that is used for training
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
@@ -84,6 +95,11 @@ class ASIC(torch.nn.Module):
         return circuit[slices]
 
     def embed(self, x):
+        '''
+        evenly embed inputs into a multidimensional grid of inputs with shape self.shape
+        inputs that are not assigned an element of x are used for temporary storage/memory
+        Each element of self.shape must be a multiple of the corresponding elemento of x.shape
+        '''
         self.state = torch.zeros((x.shape[0],) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
