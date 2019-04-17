@@ -97,20 +97,35 @@ def f(x):
 epochs = 100000
 optimizer = torch.optim.Adam(model.parameters())
 batch_size = 128
-memory = 2
+memory = 2 # for 1 / 2 wires used for memory
+use_cuda = torch.cuda.is_available()
+if use_cuda:
+    model = model.cuda()
 for epoch in range(epochs):
     optimizer.zero_grad()
-    # x = torch.from_numpy(numpy.asarray([0, 1, 0]))
-    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape)))
-    pred = model(x.float())
-    pred_circuit = model.apply(x.float())
+    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape))).float()
+    if use_cuda:
+        x = x.cuda()
+    pred = model(x)
+    pred_circuit = model.apply(x)
     true = f(x)
     loss = bce(pred, true) #+ regularizer
     loss.backward()
     if not epoch % 100:
-        print(x[0])
-        print(pred_circuit[0])
-        print(true[0])
-        print(1 - abs(true - pred_circuit).mean().item())
+        inputs = x[0]
+        circuit_prediction = pred_circuit[0]
+        true_output = true[0]
+        accuracy = 1 - abs(true_output - circuit_prediction).mean()
+        this_loss = loss.item()
+        if use_cuda:
+            inputs = inputs.detach().cpu().numpy()
+            circuit_prediction = circuit_prediction.detach().cpu().numpy()
+            true_output = true_output.detach().cpu().numpy()
+            accuracy = accuracy.detach().cpu().numpy()
+            this_loss = this_loss.detach().cpu().numpy()
+        print(inputs)
+        print(circuit_prediction)
+        print(true_output)
+        print(accuracy)
         print(loss.item())
     optimizer.step()
