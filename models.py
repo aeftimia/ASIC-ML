@@ -20,18 +20,24 @@ def first_to_last(x):
 
 class ASIC(torch.nn.Module):
 
-    def __init__(self, shape, layers, kernel):
-        # dimensions: horizontal, vertical x direction -1, direction +1 x incoming bits from other rails x n x n
+    def __init__(self, shape, num_layers, span, device):
+        '''
+        shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
+            Some of these may just be used as placeholders/memory for intermediate computations
+        nlayers: how many layers of processing before returning the final results
+        span: How many nodes in each dimension to span
+        '''
         super(ASIC, self).__init__()
+        self.device = device
         dimension = len(shape)
-        self.kernel = kernel
+        self.kernel = tuple(s * 2 + 1 for s in span)
         self.shape = shape
-        self.layers = layers
-        ninputs = numpy.prod(kernel)
+        self.layers = num_layers
+        ninputs = numpy.prod(self.kernel)
         n_possible_inputs = 2 ** ninputs
-        self.toggle_gates = torch.nn.Parameter(torch.rand(*(layers, n_possible_inputs) + shape))
-        self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).transpose(0, 1)
-        self.bitmask = repeat(self.bitmask, shape).float()
+        self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + shape, device=self.device, dtype=torch.float))
+        self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).float().to(self.device).transpose(0, 1)
+        self.bitmask = repeat(self.bitmask, shape)
 
     def convolve(self, x):
         shape = x.shape
@@ -53,8 +59,6 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
-        if x.is_cuda:
-            bitmask = bitmask.cuda()
         slices = self.embed(x)
         for layer in range(self.layers):
             convolved = self.convolve(self.state)
@@ -69,8 +73,6 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         bitmask = repeat(self.bitmask, (x.shape[0],))
-        if x.is_cuda:
-            bitmask = bitmask.cuda()
         slices = self.embed(x)
         circuit = self.state.round()
         for i, layer in enumerate(range(self.layers)):
@@ -82,9 +84,7 @@ class ASIC(torch.nn.Module):
         return circuit[slices]
 
     def embed(self, x):
-        self.state = torch.zeros((x.shape[0],) + self.shape)
-        if x.is_cuda:
-            self.state = self.state.cuda()
+        self.state = torch.zeros((x.shape[0],) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
             assert not my_shape % your_shape
@@ -95,43 +95,41 @@ class ASIC(torch.nn.Module):
 
 bce = torch.nn.BCELoss()
 
-model = ASIC((16,), 8, (5,))
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
+model = ASIC((16,), 8, (2,), device)
 
 def f(x):
     ret = abs((x[:, 1] * x[:, 0]).unsqueeze(-1) - x)
     return ret.float()
 
-epochs = 100000
+epochs = 10 ** 6
 optimizer = torch.optim.Adam(model.parameters())
 batch_size = 128
 memory = 2 # for 1 / 2 wires used for memory
-use_cuda = torch.cuda.is_available()
-if use_cuda:
-    model = model.cuda()
+model = model.to(device)
 for epoch in range(epochs):
     optimizer.zero_grad()
-    x = torch.from_numpy(numpy.random.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape))).float()
-    if use_cuda:
-        x = x.cuda()
+    x = torch.randint(0, 2, size=(batch_size,) + tuple(s // memory for s in model.shape), device=device, dtype=torch.float)
     pred = model(x)
     pred_circuit = model.apply(x)
     true = f(x)
-    loss = bce(pred, true) #+ regularizer
+    loss = bce(pred, true)
     loss.backward()
+    optimizer.step()
     if not epoch % 100:
         inputs = x[0]
         circuit_prediction = pred_circuit[0]
         true_output = true[0]
-        accuracy = 1 - abs(true - pred_circuit).mean()
+        accuracy = (1 - abs(true - pred_circuit).max(1)[0]).mean().item() * 100
         this_loss = loss.item()
-        if use_cuda:
-            inputs = inputs.detach().cpu().numpy()
-            circuit_prediction = circuit_prediction.detach().cpu().numpy()
-            true_output = true_output.detach().cpu().numpy()
-            accuracy = accuracy.detach().cpu().numpy()
-        print(inputs)
-        print(circuit_prediction)
-        print(true_output)
-        print(accuracy)
-        print(loss.item())
-    optimizer.step()
+        inputs = inputs.detach().cpu().numpy()
+        circuit_prediction = circuit_prediction.detach().cpu().numpy()
+        true_output = true_output.detach().cpu().numpy()
+        print('inpt:', inputs)
+        print('pred:', circuit_prediction)
+        print('true:', true_output)
+        print('%accuracy:', accuracy)
+        print('loss:', loss.item())
