@@ -58,6 +58,8 @@ class ASIC(torch.nn.Module):
         slices = self.embed(x)
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(self.state)
+            if x.is_cuda:
+                convolved = convolved.cuda()
             weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
             self.state = (weight * toggle_weights[layer]).sum(1)
             self.state = torch.clamp(self.state, 0, 1)
