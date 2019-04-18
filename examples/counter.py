@@ -13,5 +13,5 @@ def target(x):
     return ret.float()
 
 model = ASIC((16,), 14, (1,), device)
-batch_size = 64
+batch_size = 32
 stochastic(model, target, (batch_size, 8), 10 ** 6)
