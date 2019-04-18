@@ -21,13 +21,14 @@ for epoch in range(epochs):
     pred_circuit = model.apply(x)
     true = target(x)
     loss = bce(pred, true)
+    accuracy = (1 - abs(true - pred_circuit).max(1)[0]).mean().item() * 100
     loss.backward()
-    optimizer.step()
+    if accuracy < 100:
+        optimizer.step()
     if not epoch % 100:
         inputs = x[0]
         circuit_prediction = pred_circuit[0]
         true_output = true[0]
-        accuracy = (1 - abs(true - pred_circuit).max(1)[0]).mean().item() * 100
         this_loss = loss.item()
         inputs = inputs.detach().cpu().numpy()
         circuit_prediction = circuit_prediction.detach().cpu().numpy()
