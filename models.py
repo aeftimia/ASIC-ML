@@ -103,7 +103,7 @@ class ASIC(torch.nn.Module):
 
     def embed(self, x):
         '''
-        evenly embed inputs into a multidimensional grid of inputs with shape self.shape
+        evenly embed x into a multidimensional grid of inputs with shape self.shape
         inputs that are not assigned an element of x are used for temporary storage/memory
         Each element of self.shape must be a multiple of the corresponding elemento of x.shape
         '''
