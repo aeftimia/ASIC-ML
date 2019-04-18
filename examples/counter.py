@@ -12,6 +12,6 @@ def target(x):
         num //= 2
     return ret.float()
 
-model = ASIC((16,), 8, (2,), device)
+model = ASIC((16,), 8, (1,), device)
 batch_size = 64
 train(model, target, (batch_size, 8), 10 ** 6)
