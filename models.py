@@ -107,7 +107,16 @@ class ASIC(torch.nn.Module):
         inputs that are not assigned an element of x are used for temporary storage/memory
         Each element of self.shape must be a multiple of the corresponding elemento of x.shape
         '''
-        self.state = torch.zeros((x.shape[0],) + self.shape, device=self.device)
+        if hasattr(self, 'state'):
+            self.state = self.state.detach()
+            # batch_size changed
+            if len(self.state) < len(x):
+                zeros = torch.zeros((len(x) - len(self.state),) + self.shape, device=self.device)
+                self.state = torch.cat((self.state, zeros), 0)
+            elif len(self.state) > len(x):
+                self.state = self.state[:len(x)]
+        else:
+            self.state = torch.zeros((len(x),) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
             assert not my_shape % your_shape
