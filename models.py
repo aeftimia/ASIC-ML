@@ -20,7 +20,7 @@ def first_to_last(x):
 
 class ASIC(torch.nn.Module):
 
-    def __init__(self, shape, num_layers, span, device):
+    def __init__(self, shape, num_layers, span, device, reset=True):
         '''
         shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
             Some of these may just be used as placeholders/memory for intermediate computations
@@ -29,6 +29,7 @@ class ASIC(torch.nn.Module):
         '''
         super(ASIC, self).__init__()
         self.device = device
+        self.reset = reset
         dimension = len(shape)
         self.kernel = tuple(s * 2 + 1 for s in span)
         self.shape = shape
@@ -107,7 +108,7 @@ class ASIC(torch.nn.Module):
         inputs that are not assigned an element of x are used for temporary storage/memory
         Each element of self.shape must be a multiple of the corresponding elemento of x.shape
         '''
-        if hasattr(self, 'state'):
+        if not self.reset and hasattr(self, 'state'):
             self.state = self.state.detach()
             # batch_size changed
             if len(self.state) < len(x):
