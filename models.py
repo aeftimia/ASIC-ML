@@ -24,7 +24,7 @@ class ASIC(torch.nn.Module):
         '''
         shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
             Some of these may just be used as placeholders/memory for intermediate computations
-        nlayers: how many layers of processing before returning the final results
+        num_layers: how many layers of processing before returning the final results
         span: How many nodes in each dimension to span
         '''
         super(ASIC, self).__init__()
@@ -42,7 +42,7 @@ class ASIC(torch.nn.Module):
     def convolve(self, x):
         '''
         slide and wrap self.kernel across x
-        self.kernel.shape = size1, size2, ..., sizeN
+        self.kernel = size1, size2, ..., sizeN
         x.shape = batch_size, dimension1, dimension2, ..., dimensionN
         convolve(x) = batch_size,dimension1, dimension2, ..., dimensionN, size1 x size2 x ... x sizeN
         '''
