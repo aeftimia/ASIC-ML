@@ -1,7 +1,7 @@
 import torch
 
 from models import ASIC, device
-from train import train
+from train import batch
 
 def target(x):
     basis = 2 ** torch.arange(x.shape[1], device=x.device).float()
@@ -14,4 +14,4 @@ def target(x):
 
 model = ASIC((16,), 8, (1,), device)
 batch_size = 64
-train(model, target, (batch_size, 8), 10 ** 6)
+batch(model, target, (batch_size, 8), 10 ** 6)
