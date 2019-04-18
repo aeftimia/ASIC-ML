@@ -22,6 +22,7 @@ def train(model, target, shape, epochs):
             inputs = inputs.detach().cpu().numpy()
             circuit_prediction = circuit_prediction.detach().cpu().numpy()
             true_output = true_output.detach().cpu().numpy()
+            print('epoch:', epoch)
             print('inpt:', inputs)
             print('pred:', circuit_prediction)
             print('true:', true_output)
