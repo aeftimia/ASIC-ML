@@ -28,4 +28,7 @@ def test_embed():
     assert torch.all(model.state[:, ::2] == 2)
     model = ASIC((12,), 1, (2,), 'cpu')
     slices = model.embed(x)
-    assert torch.all(model.state[:, torch.from_numpy(numpy.asarray([1, 2, 4, 5, 7, 8]))] == 2)
+    assert torch.all(model.state[:, torch.from_numpy(numpy.asarray([1, 2, 4, 5, 7, 8, 10, 11]))] == 2)
+    model = ASIC((10,), 1, (2,), 'cpu')
+    slices = model.embed(x)
+    assert torch.all(model.state[:, torch.from_numpy(numpy.asarray([1, 2, 3, 4, 6, 7, 8, 9]))] == 2)
