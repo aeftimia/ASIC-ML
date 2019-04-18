@@ -120,8 +120,15 @@ class ASIC(torch.nn.Module):
             self.state = torch.zeros((len(x),) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
-            assert not my_shape % your_shape
-            slices.append(slice(None, None, my_shape // your_shape))
+            memory = my_shape - your_shape
+            if not my_shape % your_shape:
+                slices.append(slice(None, None, my_shape // your_shape))
+            elif not my_shape % memory:
+                indices = torch.ones(my_shape, dtype=torch.uint8)
+                indices[slice(None, None, my_shape // memory)] = 0
+                slices.append(indices)
+            else:
+                raise
         slices = tuple(slices)
         self.state[slices] = x
         return slices
