@@ -1,7 +1,7 @@
 import torch
 
 from models import ASIC, device
-from train import batch
+from train import stochastic
 
 def target(x):
     basis = 2 ** torch.arange(x.shape[1], device=x.device).float()
@@ -12,6 +12,6 @@ def target(x):
         num //= 2
     return ret.float()
 
-model = ASIC((16,), 8, (1,), device)
+model = ASIC((16,), 14, (1,), device)
 batch_size = 64
-batch(model, target, (batch_size, 8), 10 ** 6)
+stochastic(model, target, (batch_size, 8), 10 ** 6)
