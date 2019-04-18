@@ -20,16 +20,28 @@ def first_to_last(x):
 
 class ASIC(torch.nn.Module):
 
-    def __init__(self, shape, num_layers, span, device, reset=True):
+    def __init__(self,
+            shape,
+            num_layers,
+            span,
+            device,
+            reset=True,
+            kernel_offset='center'):
         '''
         shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
             Some of these may just be used as placeholders/memory for intermediate computations
         num_layers: how many layers of processing before returning the final results
         span: How many nodes in each dimension to span
+        reset: Reset state before each forward pass or application
+        kernel_offset: whether a given input bit should be centered:
+        - in the center of its convolutional window
+        - to the left of its convolutional window
+        - to the right of its convolutional window
         '''
         super(ASIC, self).__init__()
         self.device = device
         self.reset = reset
+        self.kernel_offset = kernel_offset
         dimension = len(shape)
         self.kernel = tuple(s * 2 + 1 for s in span)
         self.shape = shape
@@ -60,7 +72,14 @@ class ASIC(torch.nn.Module):
                 x = x.transpose(1, dimension + 1)
         x = x.reshape(shape + (-1,))
         # recenter
-        center = -numpy.prod(tuple((k - 1) // 2 for k in self.kernel))
+        if self.kernel_offset == 'center':
+            center = -numpy.prod(tuple((k - 1) // 2 for k in self.kernel))
+        elif self.kernel_offset == 'left':
+            center = 0
+        elif self.kernel_offset == 'right':
+            center = -numpy.prod(tuple((k - 1) for k in self.kernel))
+        else:
+            raise Exception('Invalid kernel_offset')
         ndim = len(x.shape)
         x = x.permute((ndim - 2, ndim - 1) + tuple(range(ndim - 2)))
         x = torch.cat((x[center:], x[:center]), 0)
