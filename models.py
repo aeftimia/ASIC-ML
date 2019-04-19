@@ -26,6 +26,7 @@ class ASIC(torch.nn.Module):
             kernel,
             device,
             reset=True,
+            weight_sharing=False,
             kernel_offset='center'):
         '''
         shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
@@ -33,6 +34,7 @@ class ASIC(torch.nn.Module):
         num_layers: how many layers of processing before returning the final results
         kernel: How many nodes wide window should be in each dimension
         reset: Reset state before each forward pass or application
+        weight_sharing: Whether to share free parameters across convolutions
         kernel_offset: whether a given input bit should be centered:
         - in the center of its convolutional window
         - to the left of its convolutional window
@@ -40,6 +42,7 @@ class ASIC(torch.nn.Module):
         '''
         super(ASIC, self).__init__()
         self.device = device
+        self.weight_sharing = weight_sharing
         self.reset = reset
         dimension = len(shape)
         if isinstance(kernel_offset, str):
@@ -52,7 +55,10 @@ class ASIC(torch.nn.Module):
         self.layers = num_layers
         ninputs = numpy.prod(self.kernel)
         n_possible_inputs = 2 ** ninputs
-        self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + shape, device=self.device, dtype=torch.float))
+        if self.weight_sharing:
+            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs), device=self.device, dtype=torch.float))
+        else:
+            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + shape, device=self.device, dtype=torch.float))
         self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).float().to(self.device).transpose(0, 1)
         self.bitmask = repeat(self.bitmask, shape)
 
@@ -99,11 +105,13 @@ class ASIC(torch.nn.Module):
         The weights are derived from 1 - |bitmask - real_inputs|, where the bitmask contains an array of all possible combinations of inputs
         '''
         toggle_weights = self.toggle_gates.sigmoid()
-        bitmask = repeat(self.bitmask, (x.shape[0],))
+        if self.weight_sharing:
+            toggle_weights = first_to_last(repeat(toggle_weights, self.shape))
+        bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
         slices = self.embed(x)
         for layer in range(self.layers):
             convolved = self.convolve(self.state)
-            weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
+            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
             self.state = (weight * toggle_weights[layer]).sum(1)
             self.state = torch.clamp(self.state, 0, 1)
         return self.state[slices]
@@ -114,12 +122,14 @@ class ASIC(torch.nn.Module):
         This represents the real asic derived from the differentiable floating point version that is used for training
         '''
         toggle_weights = self.toggle_gates.sigmoid()
-        bitmask = repeat(self.bitmask, (x.shape[0],))
+        if self.weight_sharing:
+            toggle_weights = first_to_last(repeat(toggle_weights, self.shape))
+        bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
         slices = self.embed(x)
         circuit = self.state.round()
         for i, layer in enumerate(range(self.layers)):
             convolved = self.convolve(circuit)
-            weight = (1 - torch.abs(last_to_first(bitmask) - convolved)).prod(-1).transpose(0, 1)
+            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
             circuit = (weight * toggle_weights[layer]).sum(1)
             circuit = torch.clamp(circuit, 0, 1)
             circuit = circuit.round()
