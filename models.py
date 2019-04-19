@@ -23,7 +23,7 @@ class ASIC(torch.nn.Module):
     def __init__(self,
             shape,
             num_layers,
-            span,
+            kernel,
             device,
             reset=True,
             kernel_offset='center'):
@@ -31,7 +31,7 @@ class ASIC(torch.nn.Module):
         shape: how many nodes in each direction to define a len(shape) dimensional grid of input wires.
             Some of these may just be used as placeholders/memory for intermediate computations
         num_layers: how many layers of processing before returning the final results
-        span: How many nodes in each dimension to span
+        kernel: How many nodes wide window should be in each dimension
         reset: Reset state before each forward pass or application
         kernel_offset: whether a given input bit should be centered:
         - in the center of its convolutional window
@@ -43,7 +43,7 @@ class ASIC(torch.nn.Module):
         self.reset = reset
         self.kernel_offset = kernel_offset
         dimension = len(shape)
-        self.kernel = tuple(s * 2 + 1 for s in span)
+        self.kernel = kernel
         self.shape = shape
         self.layers = num_layers
         ninputs = numpy.prod(self.kernel)
