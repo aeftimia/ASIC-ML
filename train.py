@@ -2,9 +2,13 @@ import itertools
 import numpy
 import torch
 
+checkpoint = 100
+
 def stochastic(model, target, shape, epochs):
     bce = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters())
+    rolling_loss = 0
+    rolling_accuracy = 0
     for epoch in range(epochs):
         optimizer.zero_grad()
         x = torch.randint(0, 2, size=shape, device=model.device, dtype=torch.float)
@@ -12,10 +16,14 @@ def stochastic(model, target, shape, epochs):
         pred_circuit = model.apply(x)
         true = target(x)
         loss = bce(pred, true)
+        rolling_loss *= (1 - 1. / checkpoint)
+        rolling_loss +=  1. / checkpoint * loss.item()
         accuracy = (1 - abs(true - pred_circuit).max(1)[0]).mean().item() * 100
+        rolling_accuracy *= (1 - 1. / checkpoint)
+        rolling_accuracy +=  1. / checkpoint * accuracy
         loss.backward()
         optimizer.step()
-        if not epoch % 100:
+        if not epoch % checkpoint:
             inputs = x[0]
             circuit_prediction = pred_circuit[0]
             true_output = true[0]
@@ -27,8 +35,8 @@ def stochastic(model, target, shape, epochs):
             print('inpt:', inputs)
             print('pred:', circuit_prediction)
             print('true:', true_output)
-            print('%accuracy:', accuracy)
-            print('loss:', loss.item())
+            print('%accuracy:', rolling_accuracy)
+            print('loss:', rolling_loss)
 
 def batch(model, target, shape, epochs):
     bce = torch.nn.BCELoss()
@@ -45,7 +53,7 @@ def batch(model, target, shape, epochs):
         accuracy = (1 - abs(true - pred_circuit).max(1)[0]).mean().item() * 100
         loss.backward()
         optimizer.step()
-        if not epoch % 100:
+        if not epoch % checkpoint:
             inputs = x[0]
             circuit_prediction = pred_circuit[0]
             true_output = true[0]
