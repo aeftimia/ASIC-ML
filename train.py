@@ -2,7 +2,7 @@ import itertools
 import numpy
 import torch
 
-checkpoint = 100
+checkpoint = 1000
 
 def stochastic(model, target, shape, epochs):
     bce = torch.nn.BCELoss()
