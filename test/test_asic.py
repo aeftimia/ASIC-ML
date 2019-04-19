@@ -4,8 +4,8 @@ import torch
 from models import ASIC
 
 def test_convolve():
-    model = ASIC((8,), 1, (2,), 'cpu')
     x = torch.from_numpy(numpy.asarray([[0,1,2,3,4,5,6,7]]))
+    model = ASIC((8,), 1, (2,), 'cpu')
     convolved = model.convolve(x)
     assert torch.all(torch.eq(convolved, torch.from_numpy(
             numpy.asarray([[
@@ -17,6 +17,34 @@ def test_convolve():
                 [3,4,5,6,7],
                 [4,5,6,7,0],
                 [5,6,7,0,1]]]))))
+
+    model = ASIC((8,), 1, (2,), 'cpu', kernel_offset='left')
+    convolved = model.convolve(x)
+    assert torch.all(torch.eq(convolved, torch.from_numpy(
+            numpy.asarray([[
+                [0,1,2,3,4],
+                [1,2,3,4,5],
+                [2,3,4,5,6],
+                [3,4,5,6,7],
+                [4,5,6,7,0],
+                [5,6,7,0,1],
+                [6,7,0,1,2],
+                [7,0,1,2,3]
+                ]]))))
+
+    model = ASIC((8,), 1, (2,), 'cpu', kernel_offset='right')
+    convolved = model.convolve(x)
+    assert torch.all(torch.eq(convolved, torch.from_numpy(
+            numpy.asarray([[
+                [4,5,6,7,0],
+                [5,6,7,0,1],
+                [6,7,0,1,2],
+                [7,0,1,2,3],
+                [0,1,2,3,4],
+                [1,2,3,4,5],
+                [2,3,4,5,6],
+                [3,4,5,6,7]
+                ]]))))
 
 def test_embed():
     x = torch.from_numpy(numpy.asarray([[2,2,2,2,2,2,2,2]])).float()
