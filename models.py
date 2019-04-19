@@ -41,8 +41,12 @@ class ASIC(torch.nn.Module):
         super(ASIC, self).__init__()
         self.device = device
         self.reset = reset
-        self.kernel_offset = kernel_offset
         dimension = len(shape)
+        if isinstance(kernel_offset, str):
+            kernel_offset = (kernel_offset,) * dimension
+        self.kernel_offset = kernel_offset
+        if isinstance(kernel, int):
+            kernel = (kernel,) * dimension
         self.kernel = kernel
         self.shape = shape
         self.layers = num_layers
@@ -60,7 +64,7 @@ class ASIC(torch.nn.Module):
         convolve(x) = batch_size,dimension1, dimension2, ..., dimensionN, size1 x size2 x ... x sizeN
         '''
         shape = x.shape
-        for dimension, k in enumerate(self.kernel):
+        for dimension, (k, offset) in enumerate(zip(self.kernel, self.kernel_offset)):
             if dimension:
                 x = x.transpose(1, dimension + 1)
             inputs = []
@@ -72,11 +76,11 @@ class ASIC(torch.nn.Module):
                 x = x.transpose(1, dimension + 1)
         x = x.reshape(shape + (-1,))
         # recenter
-        if self.kernel_offset == 'center':
+        if offset == 'center':
             center = -numpy.prod(tuple((k - 1) // 2 for k in self.kernel))
-        elif self.kernel_offset == 'left':
+        elif offset == 'left':
             center = 0
-        elif self.kernel_offset == 'right':
+        elif offset == 'right':
             center = -numpy.prod(tuple((k - 1) for k in self.kernel))
         else:
             raise Exception('Invalid kernel_offset')
