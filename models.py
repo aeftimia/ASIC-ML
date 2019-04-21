@@ -96,7 +96,7 @@ class ASIC(torch.nn.Module):
         x = x.permute(tuple(range(2, ndim)) + (0, 1))
         return x
 
-    def forward(self, x):
+    def forward(self, x, harden=False):
         '''
         forward pass through asic
         Bits on each wire are floating points between 0 and 1
@@ -106,7 +106,9 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.toggle_gates.sigmoid()
         if self.weight_sharing:
-            toggle_weights = first_to_last(repeat(toggle_weights, self.shape))
+            toggle_weights = repeat(toggle_weights, self.shape)
+            for _ in enumerate(self.shape):
+                toggle_weights = first_to_last(toggle_weights)
         bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
         slices = self.embed(x)
         for layer in range(self.layers):
@@ -114,6 +116,8 @@ class ASIC(torch.nn.Module):
             weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
             self.state = (weight * toggle_weights[layer]).sum(1)
             self.state = torch.clamp(self.state, 0, 1)
+            if harden:
+                self.state = self.state.round()
         return self.state[slices]
 
     def apply(self, x):
@@ -121,19 +125,7 @@ class ASIC(torch.nn.Module):
         Similar to forward, except round the outputs at each layer
         This represents the real asic derived from the differentiable floating point version that is used for training
         '''
-        toggle_weights = self.toggle_gates.sigmoid()
-        if self.weight_sharing:
-            toggle_weights = first_to_last(repeat(toggle_weights, self.shape))
-        bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
-        slices = self.embed(x)
-        circuit = self.state.round()
-        for i, layer in enumerate(range(self.layers)):
-            convolved = self.convolve(circuit)
-            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
-            circuit = (weight * toggle_weights[layer]).sum(1)
-            circuit = torch.clamp(circuit, 0, 1)
-            circuit = circuit.round()
-        return circuit[slices]
+        return self.forward(x, harden=True)
 
     def embed(self, x):
         '''
