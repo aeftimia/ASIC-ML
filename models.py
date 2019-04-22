@@ -25,7 +25,6 @@ class ASIC(torch.nn.Module):
             num_layers,
             kernel,
             device,
-            recurrent=True,
             weight_sharing=False,
             kernel_offset='center'):
         '''
@@ -42,23 +41,25 @@ class ASIC(torch.nn.Module):
         '''
         super(ASIC, self).__init__()
         self.device = device
-        self.weight_sharing = weight_sharing
-        self.recurrent = recurrent
         dimension = len(shape)
-        if isinstance(kernel_offset, str):
+        if not isinstance(weight_sharing, tuple):
+            weight_sharing = (weight_sharing,) * dimension
+        self.weight_sharing = weight_sharing
+        if not isinstance(kernel_offset, tuple):
             kernel_offset = (kernel_offset,) * dimension
         self.kernel_offset = kernel_offset
-        if isinstance(kernel, int):
+        if not isinstance(kernel, tuple):
             kernel = (kernel,) * dimension
         self.kernel = kernel
         self.shape = shape
         self.layers = num_layers
         ninputs = numpy.prod(self.kernel)
         n_possible_inputs = 2 ** ninputs
-        if self.weight_sharing:
-            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs), device=self.device, dtype=torch.float))
-        else:
-            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + shape, device=self.device, dtype=torch.float))
+        unshared = []
+        for weight_sharing, dim in zip(self.weight_sharing, self.shape):
+            if not weight_sharing:
+                unshared.append(dim)
+            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + tuple(unshared), device=self.device, dtype=torch.float))
         self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).float().to(self.device).transpose(0, 1)
         self.bitmask = repeat(self.bitmask, shape)
 
@@ -96,7 +97,14 @@ class ASIC(torch.nn.Module):
         x = x.permute(tuple(range(2, ndim)) + (0, 1))
         return x
 
-    def forward(self, x, state=None, harden=False):
+    def get_toggle_weights(self):
+        toggle_weights = self.toggle_gates.sigmoid()
+        for weight_sharing, dim in zip(self.weight_sharing, self.shape):
+            if weight_sharing:
+                toggle_weights = first_to_last(repeat(toggle_weights, (dim,)))
+        return toggle_weights
+
+    def forward(self, state):
         '''
         forward pass through asic
         Bits on each wire are floating points between 0 and 1
@@ -104,48 +112,33 @@ class ASIC(torch.nn.Module):
         the weights are determined by how close the actual floating point input is to each possible combination of boolean inputs
         The weights are derived from 1 - |bitmask - real_inputs|, where the bitmask contains an array of all possible combinations of inputs
         '''
-        toggle_weights = self.toggle_gates.sigmoid()
-        if self.weight_sharing:
-            toggle_weights = repeat(toggle_weights, self.shape)
-            for _ in enumerate(self.shape):
-                toggle_weights = first_to_last(toggle_weights)
-        bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
-        if state is None:
-            state = self.state
-        state, slices = self.embed(x, state)
-        hardened_output = self.state.round()
+        toggle_weights = self.get_toggle_weights()
+        bitmask = last_to_first(repeat(self.bitmask, (state.shape[0],)))
+        states = [state, state.round()]
         for layer in range(self.layers):
-            convolved = self.convolve(self.state)
-            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
-            self.state = (weight * toggle_weights[layer]).sum(1)
-            self.state = torch.clamp(self.state, 0, 1)
-            if harden:
-                self.state = self.state.round()
-        return self.state[slices]
+            for i, state in enumerate(states):
+                convolved = self.convolve(state)
+                weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
+                state = (weight * toggle_weights[layer]).sum(1)
+                state = torch.clamp(state, 0, 1)
+                if i:
+                    state = state.round()
+                states[i] = state
+        return states
 
-    def apply(self, x):
-        '''
-        Similar to forward, except round the outputs at each layer
-        This represents the real asic derived from the differentiable floating point version that is used for training
-        '''
-        return self.forward(x, harden=True)
-
-    def embed(self, state, x):
+    def embed(self, x, state=None):
         '''
         evenly embed x into a multidimensional grid of inputs with shape self.shape
         inputs that are not assigned an element of x are used for temporary storage/memory
         Each element of self.shape must be a multiple of the corresponding elemento of x.shape
         '''
-        if hasattr(self, 'state'):
-            if not self.recurrent:
-                state = self.state.detach()
-                print('detached')
+        if state is not None:
             # batch_size changed
-            if len(self.state) < len(x):
-                zeros = torch.zeros((len(x) - len(self.state),) + self.shape, device=self.device)
-                state = torch.cat((self.state, zeros), 0)
-            elif len(self.state) > len(x):
-                state = self.state[:len(x)]
+            if len(state) < len(x):
+                zeros = torch.zeros((len(x) - len(state),) + self.shape, device=self.device)
+                state = torch.cat((state, zeros), 0)
+            elif len(state) > len(x):
+                state = state[:len(x)]
         else:
             state = torch.zeros((len(x),) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
