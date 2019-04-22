@@ -25,7 +25,7 @@ class ASIC(torch.nn.Module):
             num_layers,
             kernel,
             device,
-            reset=True,
+            recurrent=True,
             weight_sharing=False,
             kernel_offset='center'):
         '''
@@ -33,7 +33,7 @@ class ASIC(torch.nn.Module):
             Some of these may just be used as placeholders/memory for intermediate computations
         num_layers: how many layers of processing before returning the final results
         kernel: How many nodes wide window should be in each dimension
-        reset: Reset state before each forward pass or application
+        recurrent: Reset state before each forward pass or application
         weight_sharing: Whether to share free parameters across convolutions
         kernel_offset: whether a given input bit should be centered:
         - in the center of its convolutional window
@@ -43,7 +43,7 @@ class ASIC(torch.nn.Module):
         super(ASIC, self).__init__()
         self.device = device
         self.weight_sharing = weight_sharing
-        self.reset = reset
+        self.recurrent = recurrent
         dimension = len(shape)
         if isinstance(kernel_offset, str):
             kernel_offset = (kernel_offset,) * dimension
@@ -96,7 +96,7 @@ class ASIC(torch.nn.Module):
         x = x.permute(tuple(range(2, ndim)) + (0, 1))
         return x
 
-    def forward(self, x, harden=False):
+    def forward(self, x, state=None, harden=False):
         '''
         forward pass through asic
         Bits on each wire are floating points between 0 and 1
@@ -110,7 +110,10 @@ class ASIC(torch.nn.Module):
             for _ in enumerate(self.shape):
                 toggle_weights = first_to_last(toggle_weights)
         bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
-        slices = self.embed(x)
+        if state is None:
+            state = self.state
+        state, slices = self.embed(x, state)
+        hardened_output = self.state.round()
         for layer in range(self.layers):
             convolved = self.convolve(self.state)
             weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
@@ -127,22 +130,24 @@ class ASIC(torch.nn.Module):
         '''
         return self.forward(x, harden=True)
 
-    def embed(self, x):
+    def embed(self, state, x):
         '''
         evenly embed x into a multidimensional grid of inputs with shape self.shape
         inputs that are not assigned an element of x are used for temporary storage/memory
         Each element of self.shape must be a multiple of the corresponding elemento of x.shape
         '''
-        if not self.reset and hasattr(self, 'state'):
-            self.state = self.state.detach()
+        if hasattr(self, 'state'):
+            if not self.recurrent:
+                state = self.state.detach()
+                print('detached')
             # batch_size changed
             if len(self.state) < len(x):
                 zeros = torch.zeros((len(x) - len(self.state),) + self.shape, device=self.device)
-                self.state = torch.cat((self.state, zeros), 0)
+                state = torch.cat((self.state, zeros), 0)
             elif len(self.state) > len(x):
-                self.state = self.state[:len(x)]
+                state = self.state[:len(x)]
         else:
-            self.state = torch.zeros((len(x),) + self.shape, device=self.device)
+            state = torch.zeros((len(x),) + self.shape, device=self.device)
         slices = [slice(None, None, None)]
         for my_shape, your_shape in zip(self.shape, x.shape[1:]):
             memory = my_shape - your_shape
@@ -155,8 +160,8 @@ class ASIC(torch.nn.Module):
             else:
                 raise
         slices = tuple(slices)
-        self.state[slices] = x
-        return slices
+        state[slices] = x
+        return state, slices
 
 if torch.cuda.is_available():
     device = 'cuda'
