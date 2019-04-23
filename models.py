@@ -25,6 +25,7 @@ class ASIC(torch.nn.Module):
             num_layers,
             kernel,
             device,
+            recure=1,
             weight_sharing=False,
             kernel_offset='center'):
         '''
@@ -37,10 +38,11 @@ class ASIC(torch.nn.Module):
         - in the center of its convolutional window
         - to the left of its convolutional window
         - to the right of its convolutional window
+        recure: How many times to feed the output of the model back in
         '''
         super(ASIC, self).__init__()
         self.device = device
-        self.weight_sharing = weight_sharing
+        self.recure = recure
         dimension = len(shape)
         if not isinstance(weight_sharing, tuple):
             weight_sharing = (weight_sharing,) * dimension
@@ -117,13 +119,14 @@ class ASIC(torch.nn.Module):
         toggle_weights = self.get_toggle_weights()
         bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
         state, slices = self.embed(x)
-        for layer in range(self.layers):
-            convolved = self.convolve(state)
-            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
-            state = (weight * toggle_weights[layer]).sum(1)
-            state = torch.clamp(state, 0, 1)
-            if harden:
-                state = state.round()
+        for _ in range(self.recure):
+            for layer in range(self.layers):
+                convolved = self.convolve(state)
+                weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
+                state = (weight * toggle_weights[layer]).sum(1)
+                state = torch.clamp(state, 0, 1)
+                if harden:
+                    state = state.round()
         return state[slices]
 
     def embed(self, x, state=None):
