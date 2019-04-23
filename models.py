@@ -151,7 +151,6 @@ class ASIC(torch.nn.Module):
             memory = my_shape - your_shape
             if not my_shape % your_shape:
                 di = my_shape // your_shape
-                mask[::di] = 1
                 for i in range(1, di):
                     mask[i::di] = 0
                 mask = torch.clamp(mask, 0, 1)
