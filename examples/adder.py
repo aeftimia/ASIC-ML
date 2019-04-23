@@ -26,7 +26,7 @@ model = ASIC((3, 4),
         device,
         kernel_offset='right',
         weight_sharing=(False, True),
-        recure=8)
+        recure=4)
 
 batch_size = 8
 stochastic(model, target, (batch_size, 2, 4), 10 ** 6)
