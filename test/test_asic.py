@@ -60,3 +60,7 @@ def test_embed():
     model = ASIC((10,), 1, (5,), 'cpu')
     state, slices = model.embed(x)
     assert torch.all(state[:, torch.from_numpy(numpy.asarray([1, 2, 3, 4, 6, 7, 8, 9]))] == 2)
+    model = ASIC((9,), 1, (5,), 'cpu')
+    state, slices = model.embed(x)
+    assert torch.all(state[:, torch.from_numpy(numpy.asarray([1, 2, 3, 4, 5, 6, 7]))] == 2)
+    assert torch.all(state[:, torch.from_numpy(numpy.asarray([0]))] == 0)
