@@ -104,7 +104,7 @@ class ASIC(torch.nn.Module):
                 toggle_weights = first_to_last(repeat(toggle_weights, (dim,)))
         return toggle_weights
 
-    def forward(self, state):
+    def forward(self, state, hard=False):
         '''
         forward pass through asic
         Bits on each wire are floating points between 0 and 1
@@ -114,17 +114,16 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.get_toggle_weights()
         bitmask = last_to_first(repeat(self.bitmask, (state.shape[0],)))
-        states = [state, state.round()]
+        if hard:
+            state = state.round()
         for layer in range(self.layers):
-            for i, state in enumerate(states):
-                convolved = self.convolve(state)
-                weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
-                state = (weight * toggle_weights[layer]).sum(1)
-                state = torch.clamp(state, 0, 1)
-                if i:
-                    state = state.round()
-                states[i] = state
-        return states
+            convolved = self.convolve(state)
+            weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
+            state = (weight * toggle_weights[layer]).sum(1)
+            state = torch.clamp(state, 0, 1)
+            if hard:
+                state = state.round()
+        return state
 
     def embed(self, x, state=None):
         '''
