@@ -13,7 +13,7 @@ def stochastic(model, target, shape, epochs):
         optimizer.zero_grad()
         x = torch.randint(0, 2, size=shape, device=model.device, dtype=torch.float)
         pred = model(x)
-        pred_circuit = model.apply(x)
+        pred_circuit = model(x, harden=True)
         true = target(x)
         loss = bce(pred, true)
         rolling_loss *= (1 - 1. / checkpoint)
