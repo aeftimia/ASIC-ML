@@ -118,7 +118,7 @@ class ASIC(torch.nn.Module):
         '''
         toggle_weights = self.get_toggle_weights()
         bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
-        state, slices = self.embed(x)
+        state, mask = self.embed(x)
         for _ in range(self.recure):
             for layer in range(self.layers):
                 convolved = self.convolve(state)
@@ -127,7 +127,7 @@ class ASIC(torch.nn.Module):
                 state = torch.clamp(state, 0, 1)
                 if harden:
                     state = state.round()
-        return state[slices]
+        return state[mask].reshape(x.shape)
 
     def embed(self, x, state=None):
         '''
@@ -144,20 +144,25 @@ class ASIC(torch.nn.Module):
                 state = state[:len(x)]
         else:
             state = torch.zeros((len(x),) + self.shape, device=self.device)
-        slices = [slice(None, None, None)]
-        for my_shape, your_shape in zip(self.shape, x.shape[1:]):
+        mask = torch.ones(state.shape, dtype=torch.uint8, device=self.device)
+        for dim, (my_shape, your_shape) in enumerate(zip(self.shape, x.shape[1:])):
+            dim += 1
+            mask = mask.transpose(0, dim)
             memory = my_shape - your_shape
             if not my_shape % your_shape:
-                slices.append(slice(None, None, my_shape // your_shape))
+                di = my_shape // your_shape
+                mask[::di] = 1
+                for i in range(1, di):
+                    mask[i::di] = 0
+                mask = torch.clamp(mask, 0, 1)
             elif not my_shape % memory:
-                indices = torch.ones(my_shape, dtype=torch.uint8)
-                indices[slice(None, None, my_shape // memory)] = 0
-                slices.append(indices)
+                di = my_shape // memory
+                mask[::di] = 0
             else:
                 raise Exception('Invalid embedding')
-        slices = tuple(slices)
-        state[slices] = x
-        return state, slices
+            mask = mask.transpose(0, dim)
+        state.reshape(-1)[mask.reshape(-1)] = x.reshape(-1)
+        return state, mask
 
 if torch.cuda.is_available():
     device = 'cuda'
