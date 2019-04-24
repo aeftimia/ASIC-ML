@@ -63,6 +63,7 @@ class ASIC(torch.nn.Module):
                 unshared.append(dim)
             self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + tuple(unshared), device=self.device, dtype=torch.float))
         self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).float().to(self.device).transpose(0, 1)
+        print(self.bitmask.shape)
         self.bitmask = repeat(self.bitmask, shape)
 
     def convolve(self, x):
