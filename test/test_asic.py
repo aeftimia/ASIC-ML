@@ -64,3 +64,10 @@ def test_embed():
     state, slices = model.embed(x)
     assert torch.all(state[:, torch.from_numpy(numpy.asarray([1, 2, 3, 4, 5, 6, 7]))] == 2)
     assert torch.all(state[:, torch.from_numpy(numpy.asarray([0]))] == 0)
+
+def test_adder():
+    model = ASIC((2,4), 1, (2,2), 'cpu', kernel_offset='right', recure=4, weight_sharing=(False, True))
+    #model.toggle_gates = torch.from_numpy(numpy.asarray([ [] ])) 
+    print('hi')
+    print(model.bitmask)
+

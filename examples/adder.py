@@ -20,13 +20,13 @@ def target(x):
             dim=1)
     return ret.float()
 
-model = ASIC((3, 4),
+model = ASIC((2, 8),
         1,
-        (3, 2),
+        (2, 2),
         device,
         kernel_offset='right',
-        weight_sharing=(False, True),
-        recure=4)
+        weight_sharing=(False, False),
+        recure=8)
 
 batch_size = 8
-stochastic(model, target, (batch_size, 2, 4), 10 ** 6)
+stochastic(model, target, (batch_size, 2, 8), 10 ** 6)
