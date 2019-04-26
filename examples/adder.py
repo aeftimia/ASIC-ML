@@ -20,15 +20,13 @@ def target(x):
             dim=1)
     return ret.float()
 
-model = ASIC((2, 3),
-        1,
-        (2, 2),
+model = ASIC((2, 10),
+        2,
+        (2, 5),
         device,
         kernel_offset='right',
         weight_sharing=(False, True),
-        recure=3)
+        recure=1)
 
 batch_size = 8
-#stochastic(model, target, (batch_size, 2, 8), 10 ** 6)
-print(model.bitmask[0,0])
-print(model.toggle_gates.shape)
+stochastic(model, target, (batch_size, 2, 8), 10 ** 6)
