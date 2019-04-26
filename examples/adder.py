@@ -20,12 +20,12 @@ def target(x):
             dim=1)
     return ret.float()
 
-model = ASIC((2, 10),
+model = ASIC((2, 12),
         2,
         (2, 5),
         device,
         kernel_offset='right',
-        weight_sharing=(False, True),
+        weight_sharing=(False, False),
         recure=1)
 
 batch_size = 8
