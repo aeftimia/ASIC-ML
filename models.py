@@ -61,7 +61,7 @@ class ASIC(torch.nn.Module):
         for weight_sharing, dim in zip(self.weight_sharing, self.shape):
             if not weight_sharing:
                 unshared.append(dim)
-            self.toggle_gates = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + tuple(unshared), device=self.device, dtype=torch.float))
+            self.toggle_weights = torch.nn.Parameter(torch.rand(*(num_layers, n_possible_inputs) + tuple(unshared), device=self.device, dtype=torch.float))
         self.bitmask = torch.from_numpy(numpy.asarray(list(itertools.product(range(2), repeat=ninputs)))).float().to(self.device).transpose(0, 1)
         print(self.bitmask.shape)
         self.bitmask = repeat(self.bitmask, shape)
@@ -102,12 +102,12 @@ class ASIC(torch.nn.Module):
         x = x.permute(tuple(range(2, ndim)) + (0, 1))
         return x
 
-    def get_toggle_weights(self):
-        toggle_weights = self.toggle_gates.sigmoid()
+    def get_toggle_gates(self):
+        toggle_gates = self.toggle_weights.sigmoid()
         for weight_sharing, dim in zip(self.weight_sharing, self.shape):
             if weight_sharing:
-                toggle_weights = first_to_last(repeat(toggle_weights, (dim,)))
-        return toggle_weights
+                toggle_gates = first_to_last(repeat(toggle_gates, (dim,)))
+        return toggle_gates
 
     def forward(self, x, harden=False):
         '''
@@ -117,14 +117,14 @@ class ASIC(torch.nn.Module):
         the weights are determined by how close the actual floating point input is to each possible combination of boolean inputs
         The weights are derived from 1 - |bitmask - real_inputs|, where the bitmask contains an array of all possible combinations of inputs
         '''
-        toggle_weights = self.get_toggle_weights()
+        toggle_gates = self.get_toggle_gates()
         bitmask = last_to_first(repeat(self.bitmask, (x.shape[0],)))
         state, mask = self.embed(x)
         for _ in range(self.recure):
             for layer in range(self.layers):
                 convolved = self.convolve(state)
                 weight = (1 - torch.abs(bitmask - convolved)).prod(-1).transpose(0, 1)
-                state = (weight * toggle_weights[layer]).sum(1)
+                state = (weight * toggle_gates[layer]).sum(1)
                 state = torch.clamp(state, 0, 1)
                 if harden:
                     state = state.round()
