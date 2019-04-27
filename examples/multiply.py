@@ -8,21 +8,15 @@ def target(x):
     basis = 2 ** torch.arange(x.shape[2], device=x.device).float()
     num0 = torch.mv(x[:, 0], basis)
     num1 = torch.mv(x[:, 1], basis)
-    num = (num0 * num1) % (basis.sum() + 1)
-    ret = torch.zeros((x.shape[0], 1, x.shape[2]), device=x.device)
-    for i, _ in enumerate(basis):
-        ret[(num % 2) == 1, 0, i] = 1
+    num = (num0 * num1) % (2 ** (x.shape[2] * 2))
+    ret = torch.zeros((x.shape[0], x.shape[2] * 2,), device=x.device)
+    for i in range(ret.shape[-1]):
+        ret[(num % 2) == 1, i] = 1
         num //= 2
-    ret = torch.cat(
-            (ret,
-                torch.zeros(
-                    (ret.shape[0], x.shape[1] - ret.shape[1]) + ret.shape[2:],
-                device=x.device)),
-            dim=1)
-    return ret.float()
+    return ret.float().reshape(x.shape)
 
 model = ASIC((2, 12),
-        2,
+        3,
         (2, 5),
         device,
         kernel_offset='right',
