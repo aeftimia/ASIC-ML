@@ -21,7 +21,7 @@ def target(x):
     return ret.float()
 
 model = ASIC((2, 12),
-        2,
+        3,
         (2, 5),
         device,
         kernel_offset='right',
