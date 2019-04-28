@@ -15,13 +15,13 @@ def target(x):
         num //= 2
     return ret.float().reshape(x.shape)
 
-model = ASIC((2, 12),
-        3,
-        (2, 5),
+model = ASIC((4, 6),
+        12,
+        (4, 3),
         device,
         kernel_offset='right',
         weight_sharing=(False, False),
         recure=1)
 
 batch_size = 8
-stochastic(model, target, (batch_size, 2, 8), 10 ** 6)
+stochastic(model, target, (batch_size, 2, 4), 10 ** 6)
